@@ -103,17 +103,17 @@ class Daemon (loc_: Host) {
                     "stop" -> {
                         writer.writeLineX("true")
                         server.close()
-                        System.err.println("local stop: $loc")
+                        System.err.println("host stop: $loc")
                     }
                     "path" -> {
                         writer.writeLineX(loc.root)
-                        System.err.println("local path: ${loc.root}")
+                        System.err.println("host path: ${loc.root}")
                     }
                     "now" -> {
                         val now = cmds[2].toLong()
                         setNow(now)
                         writer.writeLineX("true")
-                        System.err.println("local now: $now")
+                        System.err.println("host now: $now")
                     }
                 }
                 "peer" -> {
@@ -170,8 +170,10 @@ class Daemon (loc_: Host) {
                                 val (nmin, nmax) = peerRecv(r, w, chain)
                                 System.err.println("peer recv: $chain: ($nmin/$nmax)")
                                 writer.writeLineX("$nmin / $nmax")
-                                thread {
-                                    signal(chain.name, nmin)
+                                if (nmin > 0) {
+                                    thread {
+                                        signal(chain.name, nmin)
+                                    }
                                 }
                             }
                         }
@@ -212,8 +214,10 @@ class Daemon (loc_: Host) {
                                     chain
                                 )
                                 System.err.println("_peer_ _recv_: ${chain.name}: ($nmin/$nmax)")
-                                thread {
-                                    signal(chain.name, nmin)
+                                if (nmin > 0) {
+                                    thread {
+                                        signal(chain.name, nmin)
+                                    }
                                 }
                             }
                         }
