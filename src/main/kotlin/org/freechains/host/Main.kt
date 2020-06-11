@@ -39,6 +39,13 @@ fun main (args: Array<String>) {
     }
 }
 
+fun main_host_assert (args: Array<String>) : String {
+    return main_host(args).let { (ok,msg) ->
+        assert_(ok) { msg }
+        msg
+    }
+}
+
 fun main_host (args: Array<String>) : Pair<Boolean,String> {
     return catch_all("freechains-host ${args.joinToString(" ")}") {
         val (cmds, opts) = args.cmds_opts()
