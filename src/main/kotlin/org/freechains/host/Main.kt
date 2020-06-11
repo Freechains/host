@@ -11,16 +11,19 @@ freechains-host $VERSION
 Usage:
     freechains-host start <dir>
     freechains-host stop
+    freechains-host path
     freechains-host now <time>
     
 Options:
-    --host=<addr:port>      port to connect [default: $PORT_8330]
+    --help          displays this help
+    --version       displays version information
+    --port          port to connect [default: $PORT_8330]
 
 More Information:
 
     http://www.freechains.org/
 
-    Please report bugs at <http://github.com/Freechains/core>.
+    Please report bugs at <http://github.com/Freechains/README/>.
 """
 
 fun main (args: Array<String>) {
@@ -59,23 +62,29 @@ fun main_host (args: Array<String>) : Pair<Boolean,String> {
                     val socket = Socket_5s("localhost", port)
                     val writer = DataOutputStream(socket.getOutputStream()!!)
                     val reader = DataInputStream(socket.getInputStream()!!)
-                    when (cmds[0]) {
+                    val ret = when (cmds[0]) {
                         "stop" -> {
                             assert_(cmds.size == 1)
                             writer.writeLineX("$PRE host stop")
                             assert_(reader.readLineX() == "true")
-                            socket.close()
                             Pair(true, "")
+                        }
+                        "path" -> {
+                            assert_(cmds.size == 1)
+                            writer.writeLineX("$PRE host path")
+                            val path = reader.readLineX()
+                            Pair(true, path)
                         }
                         "now" -> {
                             assert_(cmds.size == 2)
                             writer.writeLineX("$PRE host now ${cmds[1]}")
                             assert_(reader.readLineX() == "true")
-                            socket.close()
                             Pair(true, "")
                         }
                         else -> Pair(false, help)
                     }
+                    socket.close()
+                    ret
                 }
             }
         }

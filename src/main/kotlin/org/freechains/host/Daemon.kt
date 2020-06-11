@@ -105,6 +105,10 @@ class Daemon (loc_: Host) {
                         server.close()
                         System.err.println("local stop: $loc")
                     }
+                    "path" -> {
+                        writer.writeLineX(loc.root)
+                        System.err.println("local path: ${loc.root}")
+                    }
                     "now" -> {
                         val now = cmds[2].toLong()
                         setNow(now)
@@ -115,7 +119,7 @@ class Daemon (loc_: Host) {
                 "peer" -> {
                     val remote = cmds[1]
                     fun peer(): Pair<DataInputStream, DataOutputStream> {
-                        val s = remote.hostSplit().let {
+                        val s = remote.to_Addr_Port().let {
                             Socket_5s(it.first, it.second)
                         }
                         val r = DataInputStream(s.getInputStream()!!)
@@ -166,6 +170,9 @@ class Daemon (loc_: Host) {
                                 val (nmin, nmax) = peerRecv(r, w, chain)
                                 System.err.println("peer recv: $chain: ($nmin/$nmax)")
                                 writer.writeLineX("$nmin / $nmax")
+                                thread {
+                                    signal(chain.name, nmin)
+                                }
                             }
                         }
                     }
@@ -192,9 +199,6 @@ class Daemon (loc_: Host) {
                                     chain
                                 )
                                 System.err.println("_peer_ _send_: ${chain.name}: ($nmin/$nmax)")
-                                thread {
-                                    signal(chain.name, nmin)
-                                }
                             }
                         }
                         "_recv_" -> {

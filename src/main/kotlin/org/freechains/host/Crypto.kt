@@ -10,8 +10,6 @@ import com.goterl.lazycode.lazysodium.utils.KeyPair
 
 private const val len = "6F99999751DE615705B9B1A987D8422D75D16F5D55AF43520765FA8C5329F7053CCAF4839B1FDDF406552AF175613D7A247C5703683AEC6DBDF0BB3932DD8322".length
 
-typealias HKey = String
-
 fun HKey.keyIsPrivate () : Boolean {
     return this.length == len
 }
