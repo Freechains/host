@@ -16,7 +16,7 @@ Usage:
     
 Options:
     --help          displays this help
-    --version       displays version information
+    --version       displays software version
     --port          port to connect [default: $PORT_8330]
 
 More Information:
@@ -27,72 +27,52 @@ More Information:
 """
 
 fun main (args: Array<String>) {
-    main_host(args).let { (ok,msg) ->
-        if (ok) {
-            if (msg.isNotEmpty()) {
-                println(msg)
-            }
-        } else {
-            System.err.println(msg)
-            exitProcess(1)
-        }
-    }
+    main_ { main_host(args) }
 }
 
 fun main_host_assert (args: Array<String>) : String {
-    return main_host(args).let { (ok,msg) ->
-        assert_(ok) { msg }
-        msg
-    }
+    return main_assert_ { main_host(args) }
 }
 
 fun main_host (args: Array<String>) : Pair<Boolean,String> {
-    return catch_all("freechains-host ${args.joinToString(" ")}") {
-        val (cmds, opts) = args.cmds_opts()
-        //println(">>> $cmds")
-        //println(">>> $opts // ${opts.containsKey("--port")}")
-        val port = if (opts.containsKey("--port")) opts["--port"]!!.toInt() else PORT_8330
-
-        when {
-            opts.containsKey("--help") -> Pair(true, help)
-            (cmds.size == 0) -> Pair(false, help)
-            else -> when (cmds[0]) {
-                "start" -> {
-                    assert_(cmds.size == 2)
-                    val host = Host_load(cmds[1], port)
-                    println("Freechains $VERSION")
-                    println("Waiting for connections on $host...")
-                    Daemon(host).daemon()
-                    Pair(true, "")
-                }
-                else -> {
-                    val socket = Socket_5s("localhost", port)
-                    val writer = DataOutputStream(socket.getOutputStream()!!)
-                    val reader = DataInputStream(socket.getInputStream()!!)
-                    val ret = when (cmds[0]) {
-                        "stop" -> {
-                            assert_(cmds.size == 1)
-                            writer.writeLineX("$PRE host stop")
-                            assert_(reader.readLineX() == "true")
-                            Pair(true, "")
-                        }
-                        "path" -> {
-                            assert_(cmds.size == 1)
-                            writer.writeLineX("$PRE host path")
-                            val path = reader.readLineX()
-                            Pair(true, path)
-                        }
-                        "now" -> {
-                            assert_(cmds.size == 2)
-                            writer.writeLineX("$PRE host now ${cmds[1]}")
-                            assert_(reader.readLineX() == "true")
-                            Pair(true, "")
-                        }
-                        else -> Pair(false, help)
+    return main_catch_("freechains-host", VERSION, help, args) { cmds, opts ->
+        val port = opts["--port"]?.toInt() ?: PORT_8330
+        when (cmds[0]) {
+            "start" -> {
+                assert_(cmds.size == 2)
+                val host = Host_load(cmds[1], port)
+                println("Freechains $VERSION")
+                println("Waiting for connections on $host...")
+                Daemon(host).daemon()
+                Pair(true, "")
+            }
+            else -> {
+                val socket = Socket_5s("localhost", port)
+                val writer = DataOutputStream(socket.getOutputStream()!!)
+                val reader = DataInputStream(socket.getInputStream()!!)
+                val ret = when (cmds[0]) {
+                    "stop" -> {
+                        assert_(cmds.size == 1)
+                        writer.writeLineX("$PRE host stop")
+                        assert_(reader.readLineX() == "true")
+                        Pair(true, "")
                     }
-                    socket.close()
-                    ret
+                    "path" -> {
+                        assert_(cmds.size == 1)
+                        writer.writeLineX("$PRE host path")
+                        val path = reader.readLineX()
+                        Pair(true, path)
+                    }
+                    "now" -> {
+                        assert_(cmds.size == 2)
+                        writer.writeLineX("$PRE host now ${cmds[1]}")
+                        assert_(reader.readLineX() == "true")
+                        Pair(true, "")
+                    }
+                    else -> Pair(false, help)
                 }
+                socket.close()
+                ret
             }
         }
     }
