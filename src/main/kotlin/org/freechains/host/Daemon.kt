@@ -80,6 +80,7 @@ class Daemon (loc_: Host) {
         try {
             val (v1,v2,_,cmds_) =
                 Regex("FC v(\\d+)\\.(\\d+)\\.(\\d+) (.*)").find(ln)!!.destructured
+            //println("$MAJOR/${v1.toInt()}  --  $MINOR/${v2.toInt()}")
             assert_(MAJOR == v1.toInt() && MINOR >= v2.toInt()) { "incompatible versions" }
             val cmds = cmds_.split(' ')
 
@@ -424,7 +425,12 @@ class Daemon (loc_: Host) {
             writer.writeLineX("! connection refused")
         } catch (e: SodiumException) {
             writer.writeLineX("! " + e.message!!)
+        } catch (e: FileNotFoundException) {
+            writer.writeLineX("! chain does not exist")
+        } catch (e: SocketException) {
+            writer.writeLineX("! connection closed")
         } catch (e: Throwable) {
+            //println("XxXxXxXxXxXxX - $e - ${e.message}")
             writer.writeLineX("! TODO - $e - ${e.message}")
         }
     }

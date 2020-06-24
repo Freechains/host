@@ -39,7 +39,7 @@ fun main_host (args: Array<String>) : Pair<Boolean,String> {
         val port = opts["--port"]?.toInt() ?: PORT_8330
         when (cmds[0]) {
             "start" -> {
-                assert_(cmds.size == 2)
+                assert_(cmds.size == 2) { "invalid number of arguments" }
                 val host = Host_load(cmds[1], port)
                 println("Freechains $VERSION")
                 println("Waiting for connections on $host...")
@@ -52,19 +52,19 @@ fun main_host (args: Array<String>) : Pair<Boolean,String> {
                 val reader = DataInputStream(socket.getInputStream()!!)
                 val ret = when (cmds[0]) {
                     "stop" -> {
-                        assert_(cmds.size == 1)
+                        assert_(cmds.size == 1) { "invalid number of arguments" }
                         writer.writeLineX("$PRE host stop")
                         assert_(reader.readLineX() == "true")
                         Pair(true, "")
                     }
                     "path" -> {
-                        assert_(cmds.size == 1)
+                        assert_(cmds.size == 1) { "invalid number of arguments" }
                         writer.writeLineX("$PRE host path")
                         val path = reader.readLineX()
                         Pair(true, path)
                     }
                     "now" -> {
-                        assert_(cmds.size == 2)
+                        assert_(cmds.size == 2) { "invalid number of arguments" }
                         writer.writeLineX("$PRE host now ${cmds[1]}")
                         assert_(reader.readLineX() == "true")
                         Pair(true, "")

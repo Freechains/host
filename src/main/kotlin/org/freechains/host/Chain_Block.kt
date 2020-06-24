@@ -121,7 +121,7 @@ fun Chain.blockChain (blk: Block, pay: String) {
     // addBlockAsFrontOfBacks
     for (bk in blk.immut.backs) {
         this.fsLoadBlock(bk).let {
-            assert_(!it.fronts.contains(blk.hash)) { "bug found: " + it.hash + " -> " + blk.hash }
+            assert_(!it.fronts.contains(blk.hash)) { "bug found (1): " + it.hash + " -> " + blk.hash }
             it.fronts.add(blk.hash)
             it.fronts.sort()            // TODO: for external tests in FS (sync.sh)
             this.fsSaveBlock(it)

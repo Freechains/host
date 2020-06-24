@@ -31,7 +31,7 @@ fun String.toState () : State {
         "linked"   -> State.LINKED
         "blocked"  -> State.BLOCKED
         "missing"  -> State.MISSING
-        else       -> error("bug found")
+        else       -> error("bug found (2)")
     }
 }
 
