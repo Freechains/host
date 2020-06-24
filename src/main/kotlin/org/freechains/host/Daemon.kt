@@ -5,10 +5,7 @@ import com.goterl.lazycode.lazysodium.exceptions.SodiumException
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.FileNotFoundException
-import java.net.ConnectException
-import java.net.ServerSocket
-import java.net.Socket
-import java.net.SocketException
+import java.net.*
 import java.util.*
 import kotlin.collections.HashSet
 import kotlin.concurrent.thread
@@ -428,7 +425,11 @@ class Daemon (loc_: Host) {
         } catch (e: FileNotFoundException) {
             writer.writeLineX("! chain does not exist")
         } catch (e: SocketException) {
-            writer.writeLineX("! connection closed")
+            System.err.println("! connection closed")
+            //writer.writeLineX("! connection closed")
+        } catch (e: SocketTimeoutException) {
+            System.err.println("! connection timeout")
+            //writer.writeLineX("! connection timeout")
         } catch (e: Throwable) {
             //println("XxXxXxXxXxXxX - $e - ${e.message}")
             writer.writeLineX("! TODO - $e - ${e.message}")
