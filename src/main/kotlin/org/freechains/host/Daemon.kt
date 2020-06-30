@@ -151,13 +151,11 @@ class Daemon (loc_: Host) {
                             val chain = synchronized(getLock()) {
                                 loc.chainsLoad(cmds[3])
                             }
-                            synchronized(getLock(chain)) {
-                                val (r, w) = peer()
-                                w.writeLineX("$PRE _peer_ _recv_ ${chain.name}")
-                                val (nmin, nmax) = peerSend(r, w, chain)
-                                System.err.println("peer send: $chain: ($nmin/$nmax)")
-                                writer.writeLineX("$nmin / $nmax")
-                            }
+                            val (r, w) = peer()
+                            w.writeLineX("$PRE _peer_ _recv_ ${chain.name}")
+                            val (nmin, nmax) = peerSend(r, w, chain)
+                            System.err.println("peer send: $chain: ($nmin/$nmax)")
+                            writer.writeLineX("$nmin / $nmax")
                         }
                         "recv" -> {
                             val chain = synchronized(getLock()) {
