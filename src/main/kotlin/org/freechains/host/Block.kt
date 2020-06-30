@@ -67,10 +67,7 @@ data class Block (
     val immut   : Immut,        // things to hash
     val hash    : Hash,         // hash of immut
     val sign    : Signature?
-) {
-    var fronts  : MutableList<Hash> = mutableListOf() // front links (next blocks)
-    //val local   : Long = getNow()
-}
+)
 
 fun Immut.toJson (): String {
     @OptIn(UnstableDefault::class)

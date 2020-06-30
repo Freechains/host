@@ -3,7 +3,6 @@ package org.freechains.host
 import org.freechains.common.*
 import java.io.DataInputStream
 import java.io.DataOutputStream
-import kotlin.system.exitProcess
 
 val help = """
 freechains-host $VERSION

@@ -16,12 +16,13 @@ import kotlin.math.ceil
 
 @Serializable
 data class Chain (
-    var root  : String,
-    val name  : String,
-    val key   : HKey?
+    var root   : String,
+    val name   : String,
+    val key    : HKey?
 ) {
-    val hash  : String = this.name.calcHash()
-    val heads : ArrayList<Hash> = arrayListOf(this.getGenesis())
+    val hash   : String = this.name.calcHash()
+    var heads  : List<Hash> = emptyList()
+    val fronts : MutableMap<String, MutableList<Hash>> = mutableMapOf()
 }
 
 // TODO: change to contract/constructor assertion
@@ -102,11 +103,6 @@ fun Immut.toHash () : Hash {
 
 // HEADS
 
-fun Chain.setHeads (news: List<Hash>) {
-    this.heads.clear()
-    this.heads.addAll(this.bfsCleanHeads(news))
-}
-
 fun Chain.getHeads (want: State) : List<Hash> {
     val now = getNow()
 
@@ -148,7 +144,7 @@ fun Chain.repsPost (hash: String) : Pair<Int,Int> {
 }
 
 fun Chain.repsAuthor (pub: String, now: Long, heads: List<Hash>) : Int {
-    val gen = this.fsLoadBlock(this.getGenesis()).fronts.let {
+    val gen = this.fronts[this.getGenesis()]!!.let {
         when {
             it.isEmpty() -> 0
             this.fsLoadBlock(it.first()).isFrom((pub)) -> LK30_max

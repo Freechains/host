@@ -118,17 +118,24 @@ fun Chain.blockChain (blk: Block, pay: String) {
     this.fsSaveBlock(blk)
     this.fsSavePay(blk.hash, pay)
 
-    // addBlockAsFrontOfBacks
+    // add this block as front of its backs
     for (bk in blk.immut.backs) {
-        this.fsLoadBlock(bk).let {
-            assert_(!it.fronts.contains(blk.hash)) { "bug found (1): " + it.hash + " -> " + blk.hash }
-            it.fronts.add(blk.hash)
-            it.fronts.sort()            // TODO: for external tests in FS (sync.sh)
-            this.fsSaveBlock(it)
-        }
+        val fronts = this.fronts[bk]!!
+        assert_(!fronts.contains(blk.hash)) { "bug found (1): " + bk + " already points to " + blk.hash }
+        fronts.add(blk.hash)
+        fronts.sort()            // TODO: for external tests in FS (sync.sh)
     }
 
-    this.setHeads(this.heads.toList() + blk.hash)
+    this.fronts[blk.hash] = mutableListOf()
+    this.heads = this.bfsCleanHeads(this.heads + blk.hash)
+
+    this.fsSave()
+}
+
+fun Chain.blockRemove (hash: Hash) {
+    val blk = this.fsLoadBlock(hash)
+    assert_(this.blockState(blk, getNow()) == State.BLOCKED) { "can only remove blocked block" }
+    this.heads = this.bfsCleanHeads(this.heads.minus(hash) + blk.immut.backs.toList())
     this.fsSave()
 }
 
@@ -153,15 +160,17 @@ fun Chain.backsAssert (blk: Block) {
 
 fun Chain.blockAssert (blk: Block) {
     val imm = blk.immut
-    //println(">>> ${blk.hash} vs ${imm.toHash()}")
-    assert_(blk.hash == imm.toHash()) { "hash must verify" }
-    this.backsAssert(blk)                   // backs exist and are older
-
     val now = getNow()
-    assert_(imm.time <= now + T30M_future) { "from the future" }
-    assert_(imm.time >= now - T120D_past) { "too old" }
+    //println(">>> ${blk.hash} vs ${imm.toHash()}")
 
-    val gen = this.getGenesis()      // unique genesis front (unique 1_xxx)
+    this.backsAssert(blk) // backs exist and are older
+    if (blk.hash.toHeight() > 0) {
+        assert_(blk.hash == imm.toHash()) { "hash must verify" }
+        assert_(imm.time >= now - T120D_past) { "too old" }
+    }
+    assert_(imm.time <= now + T30M_future) { "from the future" }
+
+    val gen = this.getGenesis() // unique genesis front (unique 1_xxx)
     if (imm.backs.contains(gen)) {
         this
             .bfsFrontsAll()
@@ -210,14 +219,4 @@ fun Chain.blockAssert (blk: Block) {
             "like author must have reputation"
         }
     }
-}
-
-// REMOVE
-
-fun Chain.blockRemove (hash: Hash) {
-    val blk = this.fsLoadBlock(hash)
-    assert_(this.blockState(blk, getNow()) == State.BLOCKED) { "can only remove blocked block" }
-    this.heads.remove(hash)
-    this.setHeads(this.heads.toList() + blk.immut.backs)
-    this.fsSave()
 }
