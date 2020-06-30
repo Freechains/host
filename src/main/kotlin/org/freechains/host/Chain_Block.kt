@@ -167,6 +167,9 @@ fun Chain.blockAssert (blk: Block) {
     if (blk.hash.toHeight() > 0) {
         assert_(blk.hash == imm.toHash()) { "hash must verify" }
         assert_(imm.time >= now - T120D_past) { "too old" }
+        if (this.isAt()!=null && this.isAtBang()) {
+            assert_(this.fromOwner(blk)) { "must be from owner" }
+        }
     }
     assert_(imm.time <= now + T30M_future) { "from the future" }
 
@@ -178,10 +181,6 @@ fun Chain.blockAssert (blk: Block) {
             .let {
                 assert_(it.isEmpty()) { "genesis is already referred" }
             }
-    }
-
-    if (this.isAt()!=null && this.isAtBang()) {
-        assert_(this.fromOwner(blk)) { "must be from owner" }
     }
 
     if (blk.sign != null) {                 // sig.hash/blk.hash/sig.pubkey all match
