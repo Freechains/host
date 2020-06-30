@@ -161,16 +161,14 @@ class Daemon (loc_: Host) {
                             val chain = synchronized(getLock()) {
                                 loc.chainsLoad(cmds[3])
                             }
-                            synchronized(getLock(chain)) {
-                                val (r, w) = peer()
-                                w.writeLineX("$PRE _peer_ _send_ ${chain.name}")
-                                val (nmin, nmax) = peerRecv(r, w, chain)
-                                System.err.println("peer recv: $chain: ($nmin/$nmax)")
-                                writer.writeLineX("$nmin / $nmax")
-                                if (nmin > 0) {
-                                    thread {
-                                        signal(chain.name, nmin)
-                                    }
+                            val (r, w) = peer()
+                            w.writeLineX("$PRE _peer_ _send_ ${chain.name}")
+                            val (nmin, nmax) = peerRecv(r, w, chain)
+                            System.err.println("peer recv: $chain: ($nmin/$nmax)")
+                            writer.writeLineX("$nmin / $nmax")
+                            if (nmin > 0) {
+                                thread {
+                                    signal(chain.name, nmin)
                                 }
                             }
                         }
@@ -441,153 +439,155 @@ class Daemon (loc_: Host) {
             writer.writeLineX("! TODO - $e - ${e.message}")
         }
     }
-}
 
-fun peerSend (reader: DataInputStream, writer: DataOutputStream, chain: Chain) : Pair<Int,Int> {
-    // - receives most recent timestamp
-    // - DFS in heads
-    //   - asks if contains hash
-    //   - aborts path if reaches timestamp+24h
-    //   - pushes into toSend
-    // - sends toSend
+    fun peerSend (reader: DataInputStream, writer: DataOutputStream, chain: Chain) : Pair<Int,Int> {
+        // - receives most recent timestamp
+        // - DFS in heads
+        //   - asks if contains hash
+        //   - aborts path if reaches timestamp+24h
+        //   - pushes into toSend
+        // - sends toSend
 
-    val visited = HashSet<Hash>()
-    var nmin    = 0
-    var nmax    = 0
+        val visited = HashSet<Hash>()
+        var nmin    = 0
+        var nmax    = 0
 
-    // for each local head
-    val heads = chain.getHeads(State.ALL)
-    val nout = heads.size
-    writer.writeLineX(nout.toString())                              // 1
-    for (head in heads) {
-        val pending = ArrayDeque<Hash>()
-        pending.push(head)
+        // for each local head
+        val heads = chain.getHeads(State.ALL)
+        val nout = heads.size
+        writer.writeLineX(nout.toString())                              // 1
+        for (head in heads) {
+            val pending = ArrayDeque<Hash>()
+            pending.push(head)
 
-        val toSend = mutableSetOf<Hash>()
+            val toSend = mutableSetOf<Hash>()
 
-        // for each head path of blocks
-        while (pending.isNotEmpty()) {
-            val hash = pending.pop()
-            if (visited.contains(hash)) {
-                continue
-            }
-            visited.add(hash)
+            // for each head path of blocks
+            while (pending.isNotEmpty()) {
+                val hash = pending.pop()
+                if (visited.contains(hash)) {
+                    continue
+                }
+                visited.add(hash)
 
-            val blk = chain.fsLoadBlock(hash)
+                val blk = chain.fsLoadBlock(hash)
 
-            writer.writeLineX(hash)                            // 2: asks if contains hash
-            val state = reader.readLineX().toState()   // 3: receives yes or no
-            if (state != State.MISSING) {
-                continue                             // already has: finishes subpath
-            }
-
-            // sends this one and visits children
-            //println("[add] $hash")
-            toSend.add(hash)
-            for (back in blk.immut.backs) {
-                pending.push(back)
-            }
-        }
-
-        writer.writeLineX("")                     // 4: will start sending nodes
-        writer.writeLineX(toSend.size.toString())    // 5: how many
-        val nin = toSend.size
-        val sorted = toSend.sortedWith(compareBy{it.toHeight()})
-        for (hash in sorted) {
-            val out = chain.fsLoadBlock(hash)
-            val json = out.toJson()
-            writer.writeLineX(json.length.toString()) // 6
-            writer.writeBytes(json)
-            val pay = when (chain.blockState(out, getNow())) {
-                State.HIDDEN -> ""
-                else         -> chain.fsLoadPay0(hash)
-            }
-            writer.writeLineX(pay.length.toString())
-            writer.writeBytes(pay)
-            writer.writeLineX("")
-        }
-        val nin2 = reader.readLineX().toInt()    // 7: how many blocks again
-        assert_(nin >= nin2)
-        nmin += nin2
-        nmax += nin
-    }
-    val nout2 = reader.readLineX().toInt()       // 8: how many heads again
-    assert_(nout == nout2)
-
-    return Pair(nmin,nmax)
-}
-
-fun peerRecv (reader: DataInputStream, writer: DataOutputStream, chain: Chain) : Pair<Int,Int> {
-    // - sends most recent timestamp
-    // - answers if contains each host
-    // - receives all
-
-    var nmax = 0
-    var nmin = 0
-
-    // list of received hidden blocks (empty payloads)
-    // will check if are really hidden
-    val hiddens = mutableListOf<Block>()
-
-    // for each remote head
-    val nout = reader.readLineX().toInt()        // 1
-    for (i in 1..nout) {
-        // for each head path of blocks
-        while (true) {
-            val hash = reader.readLineX()   // 2: receives hash in the path
-            //println("[recv-1] $hash")
-            if (hash.isEmpty()) {                   // 4
-                break                               // nothing else to answer
-            } else {
-                writer.writeLineX(chain.hashState(hash, getNow()).toString_())   // 3: have or not block
-            }
-        }
-
-        // receive blocks
-        val nin = reader.readLineX().toInt()    // 5
-        nmax += nin
-        var nin2 = 0
-
-        xxx@for (j in 1..nin) {
-            try {
-                val len1 = reader.readLineX().toInt() // 6
-                val blk = reader.readNBytesX(len1).toString(Charsets.UTF_8).jsonToBlock()
-                val len2 = reader.readLineX().toInt()
-                assert_(len2 <= S128_pay) { "post is too large" }
-                val pay = reader.readNBytesX(len2).toString(Charsets.UTF_8)
-                reader.readLineX()
-                assert_(chain.getHeads(State.BLOCKED).size <= N16_blockeds) { "too many blocked blocks" }
-
-                // reject peers with different keys
-                if (chain.isDollar()) {
-                    pay.decrypt(chain.key!!)  // throws exception if fails
+                writer.writeLineX(hash)                            // 2: asks if contains hash
+                val state = reader.readLineX().toState()   // 3: receives yes or no
+                if (state != State.MISSING) {
+                    continue                             // already has: finishes subpath
                 }
 
-                //println("[recv] ${blk.hash} // len=$len2 // ${pay.length}")
-                chain.blockChain(blk,pay)
-                if (pay=="" && blk.immut.pay.hash!="".calcHash()) {
-                    hiddens.add(blk)
-                } // else: payload is really an empty string
-
-                nmin++
-                nin2++
-            } catch (e: Throwable) {
-                System.err.println(e.message)
-                //System.err.println(e.stackTrace.contentToString())
+                // sends this one and visits children
+                //println("[add] $hash")
+                toSend.add(hash)
+                for (back in blk.immut.backs) {
+                    pending.push(back)
+                }
             }
+
+            writer.writeLineX("")                     // 4: will start sending nodes
+            writer.writeLineX(toSend.size.toString())    // 5: how many
+            val nin = toSend.size
+            val sorted = toSend.sortedWith(compareBy{it.toHeight()})
+            for (hash in sorted) {
+                val out = chain.fsLoadBlock(hash)
+                val json = out.toJson()
+                writer.writeLineX(json.length.toString()) // 6
+                writer.writeBytes(json)
+                val pay = when (chain.blockState(out, getNow())) {
+                    State.HIDDEN -> ""
+                    else         -> chain.fsLoadPay0(hash)
+                }
+                writer.writeLineX(pay.length.toString())
+                writer.writeBytes(pay)
+                writer.writeLineX("")
+            }
+            val nin2 = reader.readLineX().toInt()    // 7: how many blocks again
+            assert_(nin >= nin2)
+            nmin += nin2
+            nmax += nin
         }
-        writer.writeLineX(nin2.toString())             // 7
-    }
-    writer.writeLineX(nout.toString())                // 8
+        val nout2 = reader.readLineX().toInt()       // 8: how many heads again
+        assert_(nout == nout2)
 
-    for (blk in hiddens) {
-        assert_(
-                chain.blockState(
-                        blk,
-                        getNow()
-                ) == State.HIDDEN
-        ) { "bug found: expected hidden state" }
+        return Pair(nmin,nmax)
     }
 
-    return Pair(nmin,nmax)
+    fun peerRecv (reader: DataInputStream, writer: DataOutputStream, chain: Chain) : Pair<Int,Int> {
+        // - sends most recent timestamp
+        // - answers if contains each host
+        // - receives all
+
+        var nmax = 0
+        var nmin = 0
+
+        // list of received hidden blocks (empty payloads)
+        // will check if are really hidden
+        val hiddens = mutableListOf<Block>()
+
+        // for each remote head
+        val nout = reader.readLineX().toInt()        // 1
+        for (i in 1..nout) {
+            // for each head path of blocks
+            while (true) {
+                val hash = reader.readLineX()   // 2: receives hash in the path
+                //println("[recv-1] $hash")
+                if (hash.isEmpty()) {                   // 4
+                    break                               // nothing else to answer
+                } else {
+                    writer.writeLineX(chain.hashState(hash, getNow()).toString_())   // 3: have or not block
+                }
+            }
+
+            // receive blocks
+            val nin = reader.readLineX().toInt()    // 5
+            nmax += nin
+            var nin2 = 0
+
+            xxx@for (j in 1..nin) {
+                try {
+                    val len1 = reader.readLineX().toInt() // 6
+                    val blk = reader.readNBytesX(len1).toString(Charsets.UTF_8).jsonToBlock()
+                    val len2 = reader.readLineX().toInt()
+                    assert_(len2 <= S128_pay) { "post is too large" }
+                    val pay = reader.readNBytesX(len2).toString(Charsets.UTF_8)
+                    reader.readLineX()
+                    assert_(chain.getHeads(State.BLOCKED).size <= N16_blockeds) { "too many blocked blocks" }
+
+                    // reject peers with different keys
+                    if (chain.isDollar()) {
+                        pay.decrypt(chain.key!!)  // throws exception if fails
+                    }
+
+                    //println("[recv] ${blk.hash} // len=$len2 // ${pay.length}")
+                    synchronized(getLock(chain)) {
+                        chain.blockChain(blk,pay)
+                    }
+                    if (pay=="" && blk.immut.pay.hash!="".calcHash()) {
+                        hiddens.add(blk)
+                    } // else: payload is really an empty string
+
+                    nmin++
+                    nin2++
+                } catch (e: Throwable) {
+                    System.err.println(e.message)
+                    //System.err.println(e.stackTrace.contentToString())
+                }
+            }
+            writer.writeLineX(nin2.toString())             // 7
+        }
+        writer.writeLineX(nout.toString())                // 8
+
+        for (blk in hiddens) {
+            assert_(
+                    chain.blockState(
+                            blk,
+                            getNow()
+                    ) == State.HIDDEN
+            ) { "bug found: expected hidden state" }
+        }
+
+        return Pair(nmin,nmax)
+    }
 }
