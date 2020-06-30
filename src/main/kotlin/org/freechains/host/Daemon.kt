@@ -15,6 +15,7 @@ class Daemon (loc_: Host) {
     private val server = ServerSocket(loc_.port)
     private val loc = loc_
 
+    // must use "plain-by-value" b/c of different refs in different threads/sockets
     private fun getLock (chain: Chain? = null) : String {
         return (loc.root + (chain?.hash ?: "")).intern()
     }
@@ -280,60 +281,53 @@ class Daemon (loc_: Host) {
                             val chain = synchronized(getLock()) {
                                 loc.chainsLoad(name)
                             }
-                            synchronized(getLock(chain)) {
-                                when (cmds[2]) {
-                                    "genesis" -> {
-                                        val hash = chain.getGenesis()
-                                        writer.writeLineX(hash)
-                                        System.err.println("chain genesis: $hash")
-                                    }
-                                    "heads" -> {
-                                        val heads = chain.getHeads(cmds[3].toState()).joinToString(" ")
-                                        writer.writeLineX(heads)
-                                        System.err.println("chain heads: $heads")
-                                    }
-                                    "traverse" -> {
-                                        val heads = chain.getHeads(cmds[3].toState())
-                                        val downto = cmds.drop(4)
-                                        //println("H=$heads // D=$downto")
-                                        val all = chain
+                            when (cmds[2]) {
+                                "genesis" -> {
+                                    val hash = chain.getGenesis()
+                                    writer.writeLineX(hash)
+                                    System.err.println("chain genesis: $hash")
+                                }
+                                "heads" -> {
+                                    val heads = chain.getHeads(cmds[3].toState()).joinToString(" ")
+                                    writer.writeLineX(heads)
+                                    System.err.println("chain heads: $heads")
+                                }
+                                "traverse" -> {
+                                    val heads = chain.getHeads(cmds[3].toState())
+                                    val downto = cmds.drop(4)
+                                    //println("H=$heads // D=$downto")
+                                    val all = chain
                                             .bfsBacks(heads, false) {
                                                 //println("TRY ${it.hash} -> ${downto.contains(it.hash)}")
                                                 !downto.contains(it.hash)
                                             }
                                             .map { it.hash }
                                             .reversed()
-                                        //println("H=$heads // D=$downto")
-                                        val ret = all.joinToString(" ")
-                                        writer.writeLineX(ret)
-                                        System.err.println("chain traverse: $ret")
-                                    }
-                                    "get" -> {
-                                        val hash = cmds[4]
-                                        val decrypt= if (cmds[5] == "null") null else cmds[5]
-                                        try {
-                                            val ret = when (cmds[3]) {
-                                                "block" -> chain.fsLoadBlock(hash).toJson()
-                                                "payload" -> chain.fsLoadPay1(hash, decrypt)
-                                                else -> error("impossible case")
-                                            }
-                                            writer.writeLineX(ret.length.toString())
-                                            writer.writeBytes(ret)
-                                        } catch (e: FileNotFoundException) {
-                                            writer.writeLineX("! block not found")
+                                    //println("H=$heads // D=$downto")
+                                    val ret = all.joinToString(" ")
+                                    writer.writeLineX(ret)
+                                    System.err.println("chain traverse: $ret")
+                                }
+                                "get" -> {
+                                    val hash = cmds[4]
+                                    val decrypt= if (cmds[5] == "null") null else cmds[5]
+                                    try {
+                                        val ret = when (cmds[3]) {
+                                            "block" -> chain.fsLoadBlock(hash).toJson()
+                                            "payload" -> chain.fsLoadPay1(hash, decrypt)
+                                            else -> error("impossible case")
                                         }
-                                        //writer.writeLineX("\n")
-                                        System.err.println("chain get: $hash")
+                                        writer.writeLineX(ret.length.toString())
+                                        writer.writeBytes(ret)
+                                    } catch (e: FileNotFoundException) {
+                                        writer.writeLineX("! block not found")
                                     }
-                                    "remove" -> {
-                                        val hash = cmds[3]
-                                        chain.blockRemove(hash)
-                                        writer.writeLineX("true")
-                                        System.err.println("chain remove: $hash")
-                                    }
-                                    "reps" -> {
-                                        val ref = cmds[3]
-                                        val likes =
+                                    //writer.writeLineX("\n")
+                                    System.err.println("chain get: $hash")
+                                }
+                                "reps" -> {
+                                    val ref = cmds[3]
+                                    val likes =
                                             if (ref.hashIsBlock()) {
                                                 val (pos, neg) = chain.repsPost(ref)
                                                 pos - neg
@@ -341,74 +335,88 @@ class Daemon (loc_: Host) {
                                                 chain.repsAuthor(ref,
                                                         getNow(), chain.getHeads(
                                                         State.ALL
-                                                    ))
+                                                ))
                                             }
-                                        writer.writeLineX(likes.toString())
-                                        System.err.println("chain reps: $likes")
-                                    }
+                                    writer.writeLineX(likes.toString())
+                                    System.err.println("chain reps: $likes")
+                                }
 
-                                    "post" -> {
-                                        val sign = cmds[3]
-                                        val len = cmds[5].toInt()
-                                        val pay = reader.readNBytesX(len).toString(Charsets.UTF_8)
-                                        assert_(pay.length <= S128_pay) { "post is too large" }
+                                // all others need "synchronized"
+                                // they affect the chain in the disk, which is shared across connections
 
-                                        var ret: String
-                                        try {
-                                            val blk = chain.blockNew (
-                                                Immut(
-                                                    0,
-                                                    Payload(false, ""),
-                                                    null,
-                                                    null,
-                                                    emptyArray()
-                                                ),
-                                                pay,
-                                                if (sign == "anon") null else sign,
-                                                cmds[4].toBoolean()
-                                            )
-                                            ret = blk.hash
-                                            thread {
-                                                signal(name, 1)
-                                            }
-                                        } catch (e: Throwable) {
-                                            //System.err.println(e.stackTrace.contentToString())
-                                            ret = "! " + e.message!!
-                                        }
-                                        writer.writeLineX(ret)
-                                        System.err.println("chain post: $ret")
+                                "remove" -> {
+                                    val hash = cmds[3]
+                                    synchronized(getLock(chain)) {
+                                        chain.blockRemove(hash)
                                     }
-                                    "like" -> {
-                                        val pay = reader.readNBytesX(cmds[6].toInt()).toString(Charsets.UTF_8)
-                                        assert_(pay.length <= S128_pay) { "post is too large" }
-                                        var ret: String
-                                        try {
+                                    writer.writeLineX("true")
+                                    System.err.println("chain remove: $hash")
+                                }
+                                "post" -> {
+                                    val sign = cmds[3]
+                                    val len = cmds[5].toInt()
+                                    val pay = reader.readNBytesX(len).toString(Charsets.UTF_8)
+                                    assert_(pay.length <= S128_pay) { "post is too large" }
+
+                                    var ret: String
+                                    try {
+                                        synchronized(getLock(chain)) {
                                             val blk = chain.blockNew(
-                                                Immut(
-                                                    0,
-                                                    Payload(false, ""),
-                                                    null,
-                                                    Like(
-                                                        cmds[3].toInt(),
-                                                        cmds[4]
+                                                    Immut(
+                                                            0,
+                                                            Payload(false, ""),
+                                                            null,
+                                                            null,
+                                                            emptyArray()
                                                     ),
-                                                    emptyArray()
-                                                ),
-                                                pay,
-                                                cmds[5],
-                                                false
+                                                    pay,
+                                                    if (sign == "anon") null else sign,
+                                                    cmds[4].toBoolean()
                                             )
                                             ret = blk.hash
-                                        } catch (e: Throwable) {
-                                            //System.err.println(e.stackTrace.contentToString())
-                                            ret = e.message!!
                                         }
-                                        writer.writeLineX(ret)
                                         thread {
                                             signal(name, 1)
                                         }
-                                        System.err.println("chain like: $ret")
+                                    } catch (e: Throwable) {
+                                        //System.err.println(e.stackTrace.contentToString())
+                                        ret = "! " + e.message!!
                                     }
+                                    writer.writeLineX(ret)
+                                    System.err.println("chain post: $ret")
+                                }
+                                "like" -> {
+                                    val pay = reader.readNBytesX(cmds[6].toInt()).toString(Charsets.UTF_8)
+                                    assert_(pay.length <= S128_pay) { "post is too large" }
+                                    var ret: String
+                                    try {
+                                        synchronized(getLock(chain)) {
+                                            val blk = chain.blockNew(
+                                                    Immut(
+                                                            0,
+                                                            Payload(false, ""),
+                                                            null,
+                                                            Like(
+                                                                    cmds[3].toInt(),
+                                                                    cmds[4]
+                                                            ),
+                                                            emptyArray()
+                                                    ),
+                                                    pay,
+                                                    cmds[5],
+                                                    false
+                                            )
+                                            ret = blk.hash
+                                        }
+                                    } catch (e: Throwable) {
+                                        //System.err.println(e.stackTrace.contentToString())
+                                        ret = e.message!!
+                                    }
+                                    writer.writeLineX(ret)
+                                    thread {
+                                        signal(name, 1)
+                                    }
+                                    System.err.println("chain like: $ret")
                                 }
                             }
                         }
@@ -489,7 +497,6 @@ fun peerSend (reader: DataInputStream, writer: DataOutputStream, chain: Chain) :
         val sorted = toSend.sortedWith(compareBy{it.toHeight()})
         for (hash in sorted) {
             val out = chain.fsLoadBlock(hash)
-            out.fronts.clear()
             val json = out.toJson()
             writer.writeLineX(json.length.toString()) // 6
             writer.writeBytes(json)
