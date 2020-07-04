@@ -87,9 +87,13 @@ fun String.jsonToBlock (): Block {
     return json.parse(Block.serializer(), this)
 }
 
+fun Hash.hashSplit () : Pair<Int,String> {
+    val (height, hash) = this.split("_")
+    return Pair(height.toInt(), hash)
+}
+
 fun Hash.toHeight () : Int {
-    val (height,_) = this.split("_")
-    return height.toInt()
+    return this.hashSplit().first
 }
 
 fun Hash.hashIsBlock () : Boolean {
