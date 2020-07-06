@@ -16,7 +16,7 @@ Usage:
 Options:
     --help          displays this help
     --version       displays software version
-    --port          port to connect [default: $PORT_8330]
+    --port=<port>   sets port to connect [default: $PORT_8330]
 
 More Information:
 

@@ -220,10 +220,12 @@ class Daemon (loc_: Host) {
                 }
                 "crypto" -> when (cmds[1]) {
                     "shared" -> {
-                        writer.writeLineX(cmds[2].toShared())
+                        val pass = reader.readLineX()
+                        writer.writeLineX(pass.toShared())
                     }
                     "pubpvt" -> {
-                        val keys = cmds[2].toPubPvt()
+                        val pass = reader.readLineX()
+                        val keys = pass.toPubPvt()
                         //println("PUBPVT: ${keys.publicKey.asHexString} // ${keys.secretKey.asHexString}")
                         writer.writeLineX(
                             keys.publicKey.asHexString + ' ' +
