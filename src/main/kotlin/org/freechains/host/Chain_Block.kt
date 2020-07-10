@@ -116,15 +116,15 @@ fun Chain.blockNew (imm_: Immut, pay0: String, sign: HKey?, pubpvt: Boolean) : B
 fun Chain.blockChain (blk: Block, pay: String) {
     this.blockAssert(blk)
 
-
     // add this block as front of its backs
     for (bk in blk.immut.backs) {
-        val fronts = this.fronts[bk]!!
+        val fronts = this.fronts.get(bk)!!
         assert_(!fronts.contains(blk.hash)) { "bug found (1): " + bk + " already points to " + blk.hash }
         fronts.add(blk.hash)
-        fronts.sort()            // TODO: for external tests in FS (sync.sh)
+        fronts.sort() // sort for deterministic tests
     }
-    this.fronts[blk.hash] = mutableListOf()
+    this.fronts.add(Pair(blk.hash,mutableListOf()))
+    this.fronts.sortBy{ it.first } // sort for deterministic tests
 
     this.fsSaveBlock(blk)
     this.fsSavePay(blk.hash, pay)
