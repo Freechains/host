@@ -15,9 +15,9 @@ class Daemon (loc_: Host) {
     private val server = ServerSocket(loc_.port)
     private val loc = loc_
 
-    // must use "plain-by-value" b/c of different refs in different threads/sockets
-    private fun getLock (chain: Chain? = null) : String {
-        return (loc.root + (chain?.hash ?: "")).intern()
+    // must use "plain-by-value" b/c of different refs in different connections of the same node
+    private fun getLock (chain: String) : String {
+        return (loc.root+chain).intern()
     }
 
     fun daemon () {
@@ -148,8 +148,9 @@ class Daemon (loc_: Host) {
                             System.err.println("peer chains")
                         }
                         "send" -> {
-                            val chain = synchronized(getLock()) {
-                                loc.chainsLoad(cmds[3])
+                            val name = cmds[3]
+                            val chain = synchronized(getLock(name)) {
+                                loc.chainsLoad(name)
                             }
                             val (r, w) = peer()
                             w.writeLineX("$PRE _peer_ _recv_ ${chain.name}")
@@ -158,8 +159,9 @@ class Daemon (loc_: Host) {
                             writer.writeLineX("$nmin / $nmax")
                         }
                         "recv" -> {
-                            val chain = synchronized(getLock()) {
-                                loc.chainsLoad(cmds[3])
+                            val name = cmds[3]
+                            val chain = synchronized(getLock(name)) {
+                                loc.chainsLoad(name)
                             }
                             val (r, w) = peer()
                             w.writeLineX("$PRE _peer_ _send_ ${chain.name}")
@@ -186,15 +188,17 @@ class Daemon (loc_: Host) {
                             System.err.println("_peer_ _chains_: $ret")
                         }
                         "_send_" -> {
-                            val chain = synchronized(getLock()) {
-                                loc.chainsLoad(cmds[2])
+                            val name = cmds[2]
+                            val chain = synchronized(getLock(name)) {
+                                loc.chainsLoad(name)
                             }
                             val (nmin, nmax) = peerSend(reader, writer, chain)
                             System.err.println("_peer_ _send_: ${chain.name}: ($nmin/$nmax)")
                         }
                         "_recv_" -> {
-                            val chain = synchronized(getLock()) {
-                                loc.chainsLoad(cmds[2])
+                            val name = cmds[2]
+                            val chain = synchronized(getLock(name)) {
+                                loc.chainsLoad(name)
                             }
                             val (nmin, nmax) = peerRecv(reader, writer, chain)
                             System.err.println("_peer_ _recv_: ${chain.name}: ($nmin/$nmax)")
@@ -224,7 +228,7 @@ class Daemon (loc_: Host) {
                 "chains" -> when (cmds[1]) {
                     "join" -> {
                         val name = cmds[2]
-                        val chain = synchronized (getLock()) {
+                        val chain = synchronized (getLock(name)) {
                             loc.chainsJoin(name, if (cmds.size == 3) null else cmds[3])
                         }
                         writer.writeLineX(chain.hash)
@@ -264,7 +268,7 @@ class Daemon (loc_: Host) {
                             }
                         }
                         else -> {
-                            val chain = synchronized(getLock()) {
+                            val chain = synchronized(getLock(name)) {
                                 loc.chainsLoad(name)
                             }
                             when (cmds[2]) {
@@ -332,7 +336,7 @@ class Daemon (loc_: Host) {
 
                                 "remove" -> {
                                     val hash = cmds[3]
-                                    synchronized(getLock(chain)) {
+                                    synchronized(getLock(chain.name)) {
                                         chain.blockRemove(hash)
                                     }
                                     writer.writeLineX("true")
@@ -346,7 +350,7 @@ class Daemon (loc_: Host) {
 
                                     var ret: String
                                     try {
-                                        synchronized(getLock(chain)) {
+                                        synchronized(getLock(chain.name)) {
                                             val blk = chain.blockNew(
                                                     Immut(
                                                             0,
@@ -376,7 +380,7 @@ class Daemon (loc_: Host) {
                                     assert_(pay.length <= S128_pay) { "post is too large" }
                                     var ret: String
                                     try {
-                                        synchronized(getLock(chain)) {
+                                        synchronized(getLock(chain.name)) {
                                             val blk = chain.blockNew(
                                                     Immut(
                                                             0,
@@ -552,7 +556,7 @@ class Daemon (loc_: Host) {
                     }
 
                     //println("[recv] ${blk.hash} // len=$len2 // ${pay.length}")
-                    synchronized(getLock(chain)) {
+                    synchronized(getLock(chain.name)) {
                         chain.blockChain(blk,pay)
                     }
                     if (pay=="" && blk.immut.pay.hash!="".calcHash()) {
