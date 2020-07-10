@@ -438,6 +438,7 @@ class Daemon (loc_: Host) {
             //writer.writeLineX("! connection timeout")
         } catch (e: Throwable) {
             //println("XxXxXxXxXxXxX - $e - ${e.message}")
+            //System.err.println(e.stackTrace.contentToString())
             writer.writeLineX("! TODO - $e - ${e.message}")
         }
     }
@@ -550,7 +551,7 @@ class Daemon (loc_: Host) {
             xxx@for (j in 1..nin) {
                 try {
                     val len1 = reader.readLineX().toInt() // 6
-                    val blk = reader.readNBytesX(len1).toString(Charsets.UTF_8).jsonToBlock()
+                    val blk = reader.readNBytesX(len1).toString(Charsets.UTF_8).jsonToBlock().copy() // .copy() recalculates .local
                     val len2 = reader.readLineX().toInt()
                     assert_(len2 <= S128_pay) { "post is too large" }
                     val pay = reader.readNBytesX(len2).toString(Charsets.UTF_8)

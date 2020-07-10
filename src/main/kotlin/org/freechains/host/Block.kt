@@ -67,7 +67,9 @@ data class Block (
     val immut   : Immut,        // things to hash
     val hash    : Hash,         // hash of immut
     val sign    : Signature?
-)
+) {
+    val local   : Long = getNow()  // used by Simul.kt to evaluate local-immut
+}
 
 fun Immut.toJson (): String {
     @OptIn(UnstableDefault::class)

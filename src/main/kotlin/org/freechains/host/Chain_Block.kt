@@ -86,7 +86,7 @@ fun Chain.blockNew (imm_: Immut, pay0: String, sign: HKey?, pubpvt: Boolean) : B
             hash  = pay0.calcHash()
         ),
         prev  = sign?.let { this.bfsBacksFindAuthor(it.pvtToPub()) } ?.hash,
-        backs = backs.toTypedArray()
+        backs = backs.sorted().toTypedArray()   // sort for deterministic tests
     )
     val pay1 = when {
         this.isDollar() -> pay0.encryptShared(this.key!!)
@@ -115,8 +115,7 @@ fun Chain.blockNew (imm_: Immut, pay0: String, sign: HKey?, pubpvt: Boolean) : B
 
 fun Chain.blockChain (blk: Block, pay: String) {
     this.blockAssert(blk)
-    this.fsSaveBlock(blk)
-    this.fsSavePay(blk.hash, pay)
+
 
     // add this block as front of its backs
     for (bk in blk.immut.backs) {
@@ -125,8 +124,11 @@ fun Chain.blockChain (blk: Block, pay: String) {
         fronts.add(blk.hash)
         fronts.sort()            // TODO: for external tests in FS (sync.sh)
     }
-
     this.fronts[blk.hash] = mutableListOf()
+
+    this.fsSaveBlock(blk)
+    this.fsSavePay(blk.hash, pay)
+
     this.heads = this.bfsCleanHeads(this.heads + blk.hash)
 
     this.fsSave()
