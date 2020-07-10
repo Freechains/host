@@ -35,7 +35,7 @@ class Daemon (loc_: Host) {
                         System.err.println(
                             e.message ?: e.toString()
                         )
-                        //System.err.println(e.stackTrace.contentToString())
+                        System.err.println(e.stackTrace.contentToString())
                     }
                 }
             } catch (e: SocketException) {
@@ -189,30 +189,18 @@ class Daemon (loc_: Host) {
                             val chain = synchronized(getLock()) {
                                 loc.chainsLoad(cmds[2])
                             }
-                            synchronized(getLock(chain)) {
-                                val (nmin, nmax) = peerSend(
-                                    reader,
-                                    writer,
-                                    chain
-                                )
-                                System.err.println("_peer_ _send_: ${chain.name}: ($nmin/$nmax)")
-                            }
+                            val (nmin, nmax) = peerSend(reader, writer, chain)
+                            System.err.println("_peer_ _send_: ${chain.name}: ($nmin/$nmax)")
                         }
                         "_recv_" -> {
                             val chain = synchronized(getLock()) {
                                 loc.chainsLoad(cmds[2])
                             }
-                            synchronized(getLock(chain)) {
-                                val (nmin, nmax) = peerRecv(
-                                    reader,
-                                    writer,
-                                    chain
-                                )
-                                System.err.println("_peer_ _recv_: ${chain.name}: ($nmin/$nmax)")
-                                if (nmin > 0) {
-                                    thread {
-                                        signal(chain.name, nmin)
-                                    }
+                            val (nmin, nmax) = peerRecv(reader, writer, chain)
+                            System.err.println("_peer_ _recv_: ${chain.name}: ($nmin/$nmax)")
+                            if (nmin > 0) {
+                                thread {
+                                    signal(chain.name, nmin)
                                 }
                             }
                         }
@@ -377,7 +365,7 @@ class Daemon (loc_: Host) {
                                             signal(name, 1)
                                         }
                                     } catch (e: Throwable) {
-                                        //System.err.println(e.stackTrace.contentToString())
+                                        System.err.println(e.stackTrace.contentToString())
                                         ret = "! " + e.message!!
                                     }
                                     writer.writeLineX(ret)
@@ -407,7 +395,7 @@ class Daemon (loc_: Host) {
                                             ret = blk.hash
                                         }
                                     } catch (e: Throwable) {
-                                        //System.err.println(e.stackTrace.contentToString())
+                                        System.err.println(e.stackTrace.contentToString())
                                         ret = e.message!!
                                     }
                                     writer.writeLineX(ret)
@@ -438,7 +426,7 @@ class Daemon (loc_: Host) {
             //writer.writeLineX("! connection timeout")
         } catch (e: Throwable) {
             //println("XxXxXxXxXxXxX - $e - ${e.message}")
-            //System.err.println(e.stackTrace.contentToString())
+            System.err.println(e.stackTrace.contentToString())
             writer.writeLineX("! TODO - $e - ${e.message}")
         }
     }
@@ -575,7 +563,7 @@ class Daemon (loc_: Host) {
                     nin2++
                 } catch (e: Throwable) {
                     System.err.println(e.message)
-                    //System.err.println(e.stackTrace.contentToString())
+                    System.err.println(e.stackTrace.contentToString())
                 }
             }
             writer.writeLineX(nin2.toString())             // 7
