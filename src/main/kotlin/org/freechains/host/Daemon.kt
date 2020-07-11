@@ -20,6 +20,16 @@ class Daemon (loc_: Host) {
         return (loc.root+chain).intern()
     }
 
+    private fun chainsLoadSync (name: String, f: ((Chain)->Unit)?) : Chain {
+        return synchronized(this.getLock(name)) {
+            val chain = loc.chainsLoad(name)
+            if (f != null) {
+                f(chain)
+            }
+            chain
+        }
+    }
+
     fun daemon () {
         //System.err.println("local start: $host")
         while (true) {
@@ -148,29 +158,23 @@ class Daemon (loc_: Host) {
                             System.err.println("peer chains")
                         }
                         "send" -> {
-                            val name = cmds[3]
-                            val chain = synchronized(getLock(name)) {
-                                loc.chainsLoad(name)
-                            }
+                            val chain = cmds[3]
                             val (r, w) = peer()
-                            w.writeLineX("$PRE _peer_ _recv_ ${chain.name}")
+                            w.writeLineX("$PRE _peer_ _recv_ $chain")
                             val (nmin, nmax) = peerSend(r, w, chain)
                             System.err.println("peer send: $chain: ($nmin/$nmax)")
                             writer.writeLineX("$nmin / $nmax")
                         }
                         "recv" -> {
-                            val name = cmds[3]
-                            val chain = synchronized(getLock(name)) {
-                                loc.chainsLoad(name)
-                            }
+                            val chain = cmds[3]
                             val (r, w) = peer()
-                            w.writeLineX("$PRE _peer_ _send_ ${chain.name}")
+                            w.writeLineX("$PRE _peer_ _send_ $chain")
                             val (nmin, nmax) = peerRecv(r, w, chain)
                             System.err.println("peer recv: $chain: ($nmin/$nmax)")
                             writer.writeLineX("$nmin / $nmax")
                             if (nmin > 0) {
                                 thread {
-                                    signal(chain.name, nmin)
+                                    signal(chain, nmin)
                                 }
                             }
                         }
@@ -188,23 +192,17 @@ class Daemon (loc_: Host) {
                             System.err.println("_peer_ _chains_: $ret")
                         }
                         "_send_" -> {
-                            val name = cmds[2]
-                            val chain = synchronized(getLock(name)) {
-                                loc.chainsLoad(name)
-                            }
+                            val chain = cmds[2]
                             val (nmin, nmax) = peerSend(reader, writer, chain)
-                            System.err.println("_peer_ _send_: ${chain.name}: ($nmin/$nmax)")
+                            System.err.println("_peer_ _send_: $chain: ($nmin/$nmax)")
                         }
                         "_recv_" -> {
                             val name = cmds[2]
-                            val chain = synchronized(getLock(name)) {
-                                loc.chainsLoad(name)
-                            }
-                            val (nmin, nmax) = peerRecv(reader, writer, chain)
-                            System.err.println("_peer_ _recv_: ${chain.name}: ($nmin/$nmax)")
+                            val (nmin, nmax) = peerRecv(reader, writer, name)
+                            System.err.println("_peer_ _recv_: $name: ($nmin/$nmax)")
                             if (nmin > 0) {
                                 thread {
-                                    signal(chain.name, nmin)
+                                    signal(name, nmin)
                                 }
                             }
                         }
@@ -268,9 +266,7 @@ class Daemon (loc_: Host) {
                             }
                         }
                         else -> {
-                            val chain = synchronized(getLock(name)) {
-                                loc.chainsLoad(name)
-                            }
+                            val chain = this.chainsLoadSync(name, null)
                             when (cmds[2]) {
                                 "genesis" -> {
                                     val hash = chain.getGenesis()
@@ -435,7 +431,7 @@ class Daemon (loc_: Host) {
         }
     }
 
-    fun peerSend (reader: DataInputStream, writer: DataOutputStream, chain: Chain) : Pair<Int,Int> {
+    fun peerSend (reader: DataInputStream, writer: DataOutputStream, chain_: String) : Pair<Int,Int> {
         // - receives most recent timestamp
         // - DFS in heads
         //   - asks if contains hash
@@ -443,6 +439,7 @@ class Daemon (loc_: Host) {
         //   - pushes into toSend
         // - sends toSend
 
+        val chain = this.chainsLoadSync(chain_,null)
         val visited = HashSet<Hash>()
         var nmin    = 0
         var nmax    = 0
@@ -467,9 +464,9 @@ class Daemon (loc_: Host) {
 
                 val blk = chain.fsLoadBlock(hash)
 
-                writer.writeLineX(hash)                            // 2: asks if contains hash
-                val state = reader.readLineX().toState()   // 3: receives yes or no
-                if (state != State.MISSING) {
+                writer.writeLineX(hash)                             // 2: asks if contains hash
+                val has = reader.readLineX().toBoolean()   // 3: receives yes or no
+                if (has) {
                     continue                             // already has: finishes subpath
                 }
 
@@ -509,11 +506,12 @@ class Daemon (loc_: Host) {
         return Pair(nmin,nmax)
     }
 
-    fun peerRecv (reader: DataInputStream, writer: DataOutputStream, chain: Chain) : Pair<Int,Int> {
+    fun peerRecv (reader: DataInputStream, writer: DataOutputStream, chain_: String) : Pair<Int,Int> {
         // - sends most recent timestamp
         // - answers if contains each host
         // - receives all
 
+        val chain = this.chainsLoadSync(chain_,null)
         var nmax = 0
         var nmin = 0
 
@@ -531,7 +529,7 @@ class Daemon (loc_: Host) {
                 if (hash.isEmpty()) {                   // 4
                     break                               // nothing else to answer
                 } else {
-                    writer.writeLineX(chain.hashState(hash, getNow()).toString_())   // 3: have or not block
+                    writer.writeLineX(chain.fsExistsBlock(hash).toString())   // 3: have or not block
                 }
             }
 
