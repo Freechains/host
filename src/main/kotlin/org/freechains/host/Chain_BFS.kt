@@ -96,7 +96,15 @@ internal fun Chain.bfs (starts: List<Hash>, inc: Boolean, dir: BfsDir, ok: (Bloc
             break
         }
 
-        val list = if (dir == BfsDir.FRONTS) this.fronts[blk.hash]!! else blk.immut.backs.toList()
+        /*
+        if (dir == BfsDir.FRONTS) {
+            if (this.fronts.get(blk.hash) == null) {
+                println("XXXXX ${blk.hash}")
+            }
+        }
+         */
+
+        val list = if (dir == BfsDir.FRONTS) this.fronts.get(blk.hash)!! else blk.immut.backs.toList()
         pending.addAll(list.minus(visited).map { this.fsLoadBlock(it) })
         visited.addAll(list)
         ret.add(blk)

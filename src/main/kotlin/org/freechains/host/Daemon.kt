@@ -20,13 +20,9 @@ class Daemon (loc_: Host) {
         return (loc.root+chain).intern()
     }
 
-    private fun chainsLoadSync (name: String, f: ((Chain)->Unit)?) : Chain {
+    private fun chainsLoadSync (name: String) : Chain {
         return synchronized(this.getLock(name)) {
-            val chain = loc.chainsLoad(name)
-            if (f != null) {
-                f(chain)
-            }
-            chain
+            loc.chainsLoad(name)
         }
     }
 
@@ -266,7 +262,7 @@ class Daemon (loc_: Host) {
                             }
                         }
                         else -> {
-                            val chain = this.chainsLoadSync(name, null)
+                            val chain = this.chainsLoadSync(name)
                             when (cmds[2]) {
                                 "genesis" -> {
                                     val hash = chain.getGenesis()
@@ -299,7 +295,16 @@ class Daemon (loc_: Host) {
                                     val decrypt= if (cmds[5] == "null") null else cmds[5]
                                     try {
                                         val ret = when (cmds[3]) {
-                                            "block" -> chain.fsLoadBlock(hash).toJson()
+                                            "block" -> {
+                                                val blk = chain.fsLoadBlock(hash)
+                                                val blk_ = Block_ (
+                                                    blk.hash, blk.local, blk.immut.time,
+                                                    blk.immut.pay, blk.immut.like, blk.sign,
+                                                    blk.immut.prev, blk.immut.backs,
+                                                    chain.fronts.get(blk.hash)!!.toTypedArray()
+                                                )
+                                                blk_.toJson()
+                                            }
                                             "payload" -> chain.fsLoadPay1(hash, decrypt)
                                             else -> error("impossible case")
                                         }
@@ -439,7 +444,7 @@ class Daemon (loc_: Host) {
         //   - pushes into toSend
         // - sends toSend
 
-        val chain = this.chainsLoadSync(chain_,null)
+        val chain = this.chainsLoadSync(chain_)
         val visited = HashSet<Hash>()
         var nmin    = 0
         var nmax    = 0
@@ -511,7 +516,7 @@ class Daemon (loc_: Host) {
         // - answers if contains each host
         // - receives all
 
-        val chain = this.chainsLoadSync(chain_,null)
+        val chain = this.chainsLoadSync(chain_)
         var nmax = 0
         var nmin = 0
 

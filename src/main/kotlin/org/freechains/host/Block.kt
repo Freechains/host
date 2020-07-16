@@ -63,6 +63,19 @@ data class Immut (
 )
 
 @Serializable
+data class Block_ (
+        val hash   : Hash,
+        val local  : Long,
+        val time   : Long,
+        val pay    : Payload,
+        val like   : Like?,
+        val sign   : Signature?,
+        val prev   : Hash?,
+        val backs  : Array<Hash>,
+        val fronts : Array<Hash>
+)
+
+@Serializable
 data class Block (
     val immut   : Immut,        // things to hash
     val hash    : Hash,         // hash of immut
@@ -83,10 +96,22 @@ fun Block.toJson (): String {
     return json.stringify(Block.serializer(), this)
 }
 
+fun Block_.toJson (): String {
+    @OptIn(UnstableDefault::class)
+    val json = Json(JsonConfiguration(prettyPrint=true))
+    return json.stringify(Block_.serializer(), this)
+}
+
 fun String.jsonToBlock (): Block {
     @OptIn(UnstableDefault::class)
     val json = Json(JsonConfiguration(prettyPrint=true))
     return json.parse(Block.serializer(), this)
+}
+
+fun String.jsonToBlock_ (): Block_ {
+    @OptIn(UnstableDefault::class)
+    val json = Json(JsonConfiguration(prettyPrint=true))
+    return json.parse(Block_.serializer(), this)
 }
 
 fun Hash.hashSplit () : Pair<Int,String> {
