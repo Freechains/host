@@ -4,7 +4,7 @@ import com.goterl.lazycode.lazysodium.interfaces.GenericHash
 import com.goterl.lazycode.lazysodium.utils.Key
 import org.freechains.common.*
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.UnstableDefault
+//import kotlinx.serialization.UnstableDefault
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonConfiguration
 import java.io.File
@@ -74,15 +74,15 @@ fun Chain.path () : String {
 // JSON
 
 fun Chain.toJson () : String {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.stringify(Chain.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.encodeToString(Chain.serializer(), this)
 }
 
 fun String.fromJsonToChain () : Chain {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.parse(Chain.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.decodeFromString(Chain.serializer(), this)
 }
 
 // GENESIS

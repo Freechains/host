@@ -1,7 +1,7 @@
 package org.freechains.host
 
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.UnstableDefault
+//import kotlinx.serialization.UnstableDefault
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonConfiguration
 import org.freechains.common.HKey
@@ -85,33 +85,33 @@ data class Block (
 }
 
 fun Immut.toJson (): String {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.stringify(Immut.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.encodeToString(Immut.serializer(), this)
 }
 
 fun Block.toJson (): String {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.stringify(Block.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.encodeToString(Block.serializer(), this)
 }
 
 fun Block_.toJson (): String {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.stringify(Block_.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.encodeToString(Block_.serializer(), this)
 }
 
 fun String.jsonToBlock (): Block {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.parse(Block.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.decodeFromString(Block.serializer(), this)
 }
 
 fun String.jsonToBlock_ (): Block_ {
-    @OptIn(UnstableDefault::class)
-    val json = Json(JsonConfiguration(prettyPrint=true))
-    return json.parse(Block_.serializer(), this)
+    //@OptIn(UnstableDefault::class)
+    val json = Json { prettyPrint=true }
+    return json.decodeFromString(Block_.serializer(), this)
 }
 
 fun Hash.hashSplit () : Pair<Int,String> {
